@@ -1,20 +1,36 @@
-# parsers.py
 from Bio import SeqIO
 import io
 import cobra
 import re
-from collections import defaultdict, Counter
+from collections import Counter
 
-# ---------------------------------------------------------
+# -------------------------
 # FASTA PARSER
-# ---------------------------------------------------------
-def parse_fasta(handle):
+# -------------------------
+def parse_fasta(file_like):
+    """
+    Robust FASTA parser for Streamlit:
+    Accepts Streamlit UploadedFile, bytes, or text-mode file.
+    Always returns text-mode handle for SeqIO.
+    """
+    # UploadedFile or file-like
+    if hasattr(file_like, "read"):
+        file_like.seek(0)
+        content = file_like.read()
+        if isinstance(content, bytes):
+            content = content.decode("utf-8", errors="ignore")
+        handle = io.StringIO(content)
+    elif isinstance(file_like, (bytes, bytearray)):
+        handle = io.StringIO(file_like.decode("utf-8", errors="ignore"))
+    else:
+        handle = file_like  # already text-mode
+
     records = list(SeqIO.parse(handle, "fasta"))
     results = []
     for r in records:
         results.append({
             "id": r.id,
-            "name": getattr(r, "name", r.id),
+            "name": r.name or r.id,
             "description": r.description,
             "sequence": str(r.seq),
             "length": len(r.seq),
@@ -22,142 +38,111 @@ def parse_fasta(handle):
         })
     return results
 
-# ---------------------------------------------------------
+# -------------------------
 # GENBANK PARSER
-# ---------------------------------------------------------
-def parse_genbank(handle):
+# -------------------------
+def parse_genbank(file_like):
+    """
+    Robust GenBank parser for Streamlit:
+    Accepts Streamlit UploadedFile, bytes, or text-mode file.
+    """
+    if hasattr(file_like, "read"):
+        file_like.seek(0)
+        content = file_like.read()
+        if isinstance(content, bytes):
+            content = content.decode("utf-8", errors="ignore")
+        handle = io.StringIO(content)
+    elif isinstance(file_like, (bytes, bytearray)):
+        handle = io.StringIO(file_like.decode("utf-8", errors="ignore"))
+    else:
+        handle = file_like  # already text-mode
+
     records = list(SeqIO.parse(handle, "genbank"))
     results = []
     for r in records:
         for feat in r.features:
             if feat.type in ("gene", "CDS", "rRNA", "tRNA"):
-                gene_name = None
-                qualifiers = feat.qualifiers or {}
-                if "gene" in qualifiers:
-                    gene_name = qualifiers.get("gene")[0]
-                elif "locus_tag" in qualifiers:
-                    gene_name = qualifiers.get("locus_tag")[0]
-                prod = qualifiers.get("product", [""])[0]
-                seq_len = int(len(feat.location)) if feat.location is not None else 0
+                q = feat.qualifiers or {}
                 results.append({
-                    "id": qualifiers.get("locus_tag", [f"{r.id}_{len(results)}"])[0],
-                    "name": gene_name or qualifiers.get("locus_tag", ["unknown"])[0],
-                    "product": prod,
-                    "start": int(feat.location.start) if feat.location is not None else None,
-                    "end": int(feat.location.end) if feat.location is not None else None,
-                    "length": seq_len,
+                    "id": q.get("locus_tag", ["unknown"])[0],
+                    "name": q.get("gene", [None])[0] or q.get("locus_tag", ["unknown"])[0],
+                    "product": q.get("product", [""])[0],
+                    "start": int(feat.location.start) if feat.location else None,
+                    "end": int(feat.location.end) if feat.location else None,
+                    "length": int(len(feat.location)) if feat.location else 0,
                     "type": feat.type,
-                    "source": "genbank",
-                    "qualifiers": qualifiers
+                    "qualifiers": q,
+                    "source": "genbank"
                 })
     return results
 
-# ---------------------------------------------------------
-# AUTO-GENERATED CATEGORY SYSTEM FOR SBML
-# ---------------------------------------------------------
+# -------------------------
+# SBML PARSER
+# -------------------------
 def autogenerate_categories_from_model(model):
-    """
-    Analyze reaction names/IDs/subsystems to create a model-specific categorization map.
-    Returns: {category: set(keywords)}
-    """
     categories = {
         "energy_systems": set(),
         "core_metabolism": set(),
         "biosynthesis": set(),
         "transport": set(),
-        "regulation": set(),
+        "regulation": set()
     }
-
-    # collect reaction text
-    reaction_texts = {}
-    for r in model.reactions:
-        text = " ".join([
-            r.id or "",
-            r.name or "",
-            getattr(r, "subsystem", "") or ""
-        ]).lower()
-        reaction_texts[r.id] = text
-
-    # base heuristic keywords
     heuristics = {
-        "energy_systems": ["photosystem", "psa", "psb", "ndh", "cytochrome",
-                           "oxidase", "electron", "respir", "atp", "ferro"],
-        "core_metabolism": ["glycolysis", "g6p", "f6p", "ppp", "pentose", "tca",
-                            "krebs", "gdh", "gap", "pyk", "pgi", "pgk", "fba",
-                            "aldolase", "isomerase"],
-        "biosynthesis": ["synthase", "synthetase", "ribose", "fatty", "amino",
-                         "biosynth", "mur", "acc", "trp", "his", "pyr"],
-        "transport": ["transporter", "export", "import", "abc", "symport",
-                      "antiport", "ex_", "_t"],
+        "energy_systems": ["photosystem", "psa", "psb", "ndh", "cytochrome", "oxidase", "electron", "respir", "atp", "ferro"],
+        "core_metabolism": ["glycolysis", "tca", "krebs", "gdh", "gap", "pyk"],
+        "biosynthesis": ["synthase", "synthetase", "ribose", "fatty", "amino", "mur"],
+        "transport": ["transporter", "export", "import", "abc", "symport", "antiport"],
         "regulation": ["regulator", "sensor", "two-component", "sigma", "tf"],
     }
 
-    # apply heuristics
-    for rid, text in reaction_texts.items():
-        for category, keys in heuristics.items():
-            for k in keys:
-                if k in text:
-                    categories[category].add(k)
-
-    # token frequency analysis
     token_counts = Counter()
-    for _, text in reaction_texts.items():
-        for token in re.findall(r"[a-zA-Z0-9_]+", text):
-            token_counts[token] += 1
-
-    # enrich categories dynamically
-    for rid, text in reaction_texts.items():
-        tokens = re.findall(r"[a-zA-Z0-9_]+", text.lower())
-        for category in list(categories.keys()):
-            if any(k in text for k in categories[category]):
-                for t in tokens:
-                    if token_counts[t] > 5 and len(t) > 2:
-                        categories[category].add(t)
-
+    for r in model.reactions:
+        text = " ".join([r.id or "", r.name or "", getattr(r, "subsystem", "") or ""]).lower()
+        for cat, keys in heuristics.items():
+            if any(k in text for k in keys):
+                categories[cat].update(keys)
+        for t in re.findall(r"[a-zA-Z0-9_]+", text):
+            token_counts[t] += 1
     return categories
 
-# ---------------------------------------------------------
-# SBML PARSER WITH AUTO-CATEGORIZATION
-# ---------------------------------------------------------
 def parse_sbml(file_like):
+    """
+    Parse SBML and auto-categorize genes/reactions.
+    Accepts UploadedFile or bytes.
+    """
     try:
         model = cobra.io.read_sbml_model(file_like)
     except Exception:
+        # fallback for UploadedFile or bytes
         file_like.seek(0)
-        model = cobra.io.read_sbml_model(io.StringIO(file_like.read().decode("utf-8")))
+        content = file_like.read()
+        if isinstance(content, bytes):
+            content = content.decode("utf-8", errors="ignore")
+        model = cobra.io.read_sbml_model(io.StringIO(content))
 
-    # generate model-specific categories
-    auto_categories = autogenerate_categories_from_model(model)
+    auto_cats = autogenerate_categories_from_model(model)
 
     genes = []
     for g in model.genes:
-        reaction_text = []
-        for r in g.reactions:
-            if r.name:
-                reaction_text.append(r.name)
-            else:
-                reaction_text.append(r.id)
-            if hasattr(r, "subsystem") and r.subsystem:
-                reaction_text.append(r.subsystem)
-
-        combined_text = "; ".join(reaction_text).lower()
-
+        reaction_text = "; ".join([r.name or r.id for r in g.reactions]).lower()
         genes.append({
             "id": g.id,
             "name": g.name or g.id,
-            "product": combined_text,
-            "auto_categories": auto_categories,
+            "product": reaction_text,
+            "auto_categories": auto_cats,
             "reactions": [r.id for r in g.reactions],
             "source": "sbml"
         })
 
-    reactions = [{
-        "id": r.id,
-        "name": r.name or r.id,
-        "bounds": (r.lower_bound, r.upper_bound),
-        "genes": [g.id for g in r.genes],
-        "source": "sbml"
-    } for r in model.reactions]
+    reactions = [
+        {
+            "id": r.id,
+            "name": r.name or r.id,
+            "bounds": (r.lower_bound, r.upper_bound),
+            "genes": [g.id for g in r.genes],
+            "source": "sbml"
+        }
+        for r in model.reactions
+    ]
 
-    # Add COBRA model for PDF export
-    return {"cobra_model": model, "genes": genes, "reactions": reactions, "auto_categories": auto_categories}
+    return {"cobra_model": model, "genes": genes, "reactions": reactions, "auto_categories": auto_cats}
