@@ -1,16 +1,12 @@
-# app.py
+#app.py
 import streamlit as st
 from parsers import parse_fasta, parse_genbank, parse_sbml
-from blocks import features_to_blocks
+from blocks import features_to_blocks, STRUCTURAL_COLORS, FUNCTION_COLORS
 from viz import blocks_to_figure
-from export_pdf import (
-    export_gene_reaction_pdf,
-    export_fasta_summary_pdf
-)
-import time
+from export_pdf import export_gene_reaction_pdf, export_fasta_summary_pdf
 
-st.set_page_config(page_title="ProkaryPredict Second Iterator", layout="wide")
-st.title("ProkaryPredict — (Second Iterator)")
+st.set_page_config(page_title="ProkaryPredict — Second Iterator", layout="wide")
+st.title("ProkaryPredict — Second Iterator")
 
 # ---------------------------
 # Session state
@@ -23,9 +19,14 @@ for k in ["confirm_export", "do_export", "input_type", "model"]:
 # ---------------------------
 with st.sidebar:
     st.header("Upload")
-    uploaded = st.file_uploader(
-        "GenBank / FASTA / SBML",
-        accept_multiple_files=False
+    uploaded = st.file_uploader("GenBank / FASTA / SBML", accept_multiple_files=False)
+
+    st.markdown("---")
+    st.header("Visualization")
+    color_layer = st.radio(
+        "Color by",
+        ["structural", "functional"],
+        index=0
     )
 
     st.markdown("---")
@@ -42,7 +43,6 @@ feature_list = []
 
 if uploaded:
     fn = uploaded.name.lower()
-
     try:
         if fn.endswith((".fa", ".fasta")):
             feature_list = parse_fasta(uploaded)
@@ -79,39 +79,24 @@ if uploaded:
         st.error(f"Parsing failed: {e}")
 
 # ---------------------------
-# Visualization (layered system)
+# Visualization
 # ---------------------------
 if feature_list:
     blocks = features_to_blocks(feature_list)
 
-    # ---- Layer selector ----
-    layer = st.sidebar.radio(
-        "Color by layer",
-        ["structural", "function", "evidence", "context"],
-        index=0
-    )
-
-    # ---- Data completeness filters ----
-    flags = ["has_sequence", "has_coordinates", "has_product", "has_reactions"]
-    active_flags = st.sidebar.multiselect(
-        "Filter by data completeness",
-        flags,
-        default=[]
-    )
-
-    # ---- Apply filters + active color ----
-    filtered = []
     for b in blocks:
-        if all(b["data_flags"].get(f, False) for f in active_flags):
-            b["active_color"] = b["colors"][layer]
-            filtered.append(b)
+        b["active_color"] = (
+            STRUCTURAL_COLORS[b["class"]]
+            if color_layer == "structural"
+            else FUNCTION_COLORS[b["function"]]
+        )
 
     st.subheader("Block visualization")
-    fig = blocks_to_figure(filtered)
+    fig = blocks_to_figure(blocks)
     st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("Block data"):
-        st.json(filtered)
+        st.json(blocks)
 
 # ---------------------------
 # Export confirmation
@@ -135,10 +120,8 @@ if st.session_state["do_export"]:
 
     if itype == "sbml" and st.session_state.get("model"):
         pdf = export_gene_reaction_pdf(st.session_state["model"])
-
     elif itype == "fasta":
         pdf = export_fasta_summary_pdf(feature_list)
-
     else:
         st.error("Export not available for this file type")
         pdf = None
