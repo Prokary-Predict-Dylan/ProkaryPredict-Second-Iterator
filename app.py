@@ -79,17 +79,32 @@ if uploaded:
         st.error(f"Parsing failed: {e}")
 
 # ---------------------------
-# Visualization
+# Visualization (layered system)
 # ---------------------------
 if feature_list:
     blocks = features_to_blocks(feature_list)
 
-    classes = sorted(set(b["class"] for b in blocks))
-    show_classes = st.sidebar.multiselect(
-        "Show gene classes", classes, classes
+    # ---- Layer selector ----
+    layer = st.sidebar.radio(
+        "Color by layer",
+        ["structural", "function", "evidence", "context"],
+        index=0
     )
 
-    filtered = [b for b in blocks if b["class"] in show_classes]
+    # ---- Data completeness filters ----
+    flags = ["has_sequence", "has_coordinates", "has_product", "has_reactions"]
+    active_flags = st.sidebar.multiselect(
+        "Filter by data completeness",
+        flags,
+        default=[]
+    )
+
+    # ---- Apply filters + active color ----
+    filtered = []
+    for b in blocks:
+        if all(b["data_flags"].get(f, False) for f in active_flags):
+            b["active_color"] = b["colors"][layer]
+            filtered.append(b)
 
     st.subheader("Block visualization")
     fig = blocks_to_figure(filtered)
