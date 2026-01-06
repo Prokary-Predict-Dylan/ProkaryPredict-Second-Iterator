@@ -13,13 +13,7 @@ def blocks_to_figure(blocks):
             orientation="h",
             marker=dict(color=b["active_color"]),
             hoverinfo="text",
-            text=(
-                f"{b['label']}<br>"
-                f"Structural: {b['structural_class']}<br>"
-                f"Function: {b['function_hint']}<br>"
-                f"Evidence: {b['evidence']}<br>"
-                f"Context: {b['model_context']}"
-            ),
+            text=f"{b['label']}<br>{b['class']}<br>{b['function']}",
             showlegend=False
         ))
 
