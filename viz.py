@@ -1,4 +1,4 @@
-# viz.py
+#viz.py
 import plotly.graph_objects as go
 
 def blocks_to_figure(blocks):
@@ -11,9 +11,15 @@ def blocks_to_figure(blocks):
             y=[1],
             base=[b["start"]],
             orientation="h",
-            marker=dict(color=b["color"]),
+            marker=dict(color=b["active_color"]),
             hoverinfo="text",
-            text=f"{b['label']}<br>{b['class']}<br>{b['function']}",
+            text=(
+                f"{b['label']}<br>"
+                f"Structural: {b['structural_class']}<br>"
+                f"Function: {b['function_hint']}<br>"
+                f"Evidence: {b['evidence']}<br>"
+                f"Context: {b['model_context']}"
+            ),
             showlegend=False
         ))
 
