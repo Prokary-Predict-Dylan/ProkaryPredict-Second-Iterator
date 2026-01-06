@@ -1,88 +1,69 @@
-# blocks.py
+#blocks.py
 import re
 
-# ---------------------------
-# Primary biological classes
-# ---------------------------
-CLASS_COLORS = {
-    "protein_coding": "#4c72b0",
-    "non_coding": "#cccccc",
-    "fragment": "#999999",
-    "unknown": "#dddddd"
+DEFAULT_COLORS = {
+    "core_metabolism": "#2c3e91", "energy_systems": "#c1d6be",
+    "biosynthesis": "#267331", "transport": "#b34237",
+    "other_functions": "#524d5c", "unassigned": "#cccccc",
+    "non_coding": "#ffffff", "regulation": "#9a6bd1"
 }
 
-# ---------------------------
-# Secondary functional tags
-# ---------------------------
-FUNCTION_KEYWORDS = {
-    "enzyme": ["ase", "dehydrogenase", "kinase", "synthase"],
-    "transporter": ["transporter", "pump", "channel", "abc"],
-    "regulator": ["regulator", "repressor", "activator", "sigma"]
-}
+EC_CATEGORY_MAP = {"1":"core_metabolism","2":"biosynthesis","3":"core_metabolism",
+                   "4":"core_metabolism","5":"core_metabolism","6":"biosynthesis","7":"transport"}
+EC_REGEX = re.compile(r"(\d+\.\d+\.\d+\.\d+)")
 
-STOP_CODONS = {"TAA", "TAG", "TGA"}
+def extract_ec_numbers(f):
+    ecs = set()
+    q = f.get("qualifiers", {})
+    if "EC_number" in q:
+        ecs.update(q["EC_number"])
+    if "ec_number" in f:
+        ecs.add(f["ec_number"])
+    matches = EC_REGEX.findall(f.get("product","") or "")
+    ecs.update(matches)
+    return list(ecs)
 
-def is_protein_coding(seq):
-    if not seq or len(seq) < 90:
-        return False
-    if len(seq) % 3 != 0:
-        return False
-    for i in range(0, len(seq) - 3, 3):
-        if seq[i:i+3].upper() in STOP_CODONS:
-            return False
-    return True
-
-def classify_feature(f):
-    # -------- GenBank explicit RNA --------
-    if f.get("type") in ("tRNA", "rRNA", "ncRNA"):
+def categorize_feature(f):
+    if f.get("type") in ("tRNA","rRNA","ncRNA"):
         return "non_coding"
+    for ec in extract_ec_numbers(f):
+        cls = ec.split(".")[0]
+        if cls in EC_CATEGORY_MAP:
+            return EC_CATEGORY_MAP[cls]
+    subsys = (f.get("subsystem") or "").lower()
+    if "transport" in subsys: return "transport"
+    if "biosynth" in subsys: return "biosynthesis"
+    if "cycle" in subsys or "metabolism" in subsys: return "core_metabolism"
+    if "regulation" in subsys: return "regulation"
+    text = (f.get("product","") + " " + (f.get("name") or "")).lower()
+    if any(k in text for k in ["transporter","channel","pump"]): return "transport"
+    if any(k in text for k in ["synthase","synthetase","ligase","synth"]): return "biosynthesis"
+    if any(k in text for k in ["dehydrogenase","isomerase","kinase","oxidase"]): return "core_metabolism"
+    if any(k in text for k in ["regulator","repressor","activator","sigma"]): return "regulation"
+    return "other_functions"
 
-    # -------- FASTA sequence inference --------
-    if f.get("source") == "fasta":
-        seq = f.get("sequence", "")
-        if len(seq) < 90:
-            return "fragment"
-        if is_protein_coding(seq):
-            return "protein_coding"
-        return "non_coding"
-
-    # -------- Default --------
-    if f.get("length", 0) < 90:
-        return "fragment"
-    return "protein_coding"
-
-def infer_function(f):
-    text = ((f.get("product") or "") + " " + (f.get("name") or "")).lower()
-    for func, keys in FUNCTION_KEYWORDS.items():
-        if any(k in text for k in keys):
-            return func
-    return "unknown"
+def assign_color(category):
+    return DEFAULT_COLORS.get(category, DEFAULT_COLORS["unassigned"])
 
 def features_to_blocks(features):
-    blocks = []
-    pos = 0
-
-    for f in features:
-        length = f.get("length", 100)
-        cls = classify_feature(f)
-        func = infer_function(f)
-        color = CLASS_COLORS.get(cls, CLASS_COLORS["unknown"])
-
-        start = f.get("start", pos)
-        end = f.get("end", start + length)
-
-        blocks.append({
-            "id": f.get("id"),
-            "label": f.get("name") or f.get("id"),
-            "class": cls,
-            "function": func,
-            "start": start,
-            "end": end,
-            "length": length,
-            "color": color,
-            "metadata": f
-        })
-
-        pos = end + int(length * 0.1)
-
+    blocks=[]
+    have_coords = all("start" in f and "end" in f for f in features)
+    if have_coords:
+        for f in features:
+            cat=categorize_feature(f)
+            length=f.get("length") or (f.get("end",0)-f.get("start",0))
+            blocks.append({"id":f.get("id"),"label":f.get("name") or f.get("id"),
+                           "category":cat,"start":f.get("start"),"end":f.get("end"),
+                           "length":length,"color":assign_color(cat),"shape":"rect",
+                           "metadata":f})
+    else:
+        pos=0
+        for f in features:
+            length=f.get("length",100)
+            cat=categorize_feature(f)
+            blocks.append({"id":f.get("id"),"label":f.get("name") or f.get("id"),
+                           "category":cat,"start":pos,"end":pos+length,
+                           "length":length,"color":assign_color(cat),"shape":"rect",
+                           "metadata":f})
+            pos+=length+int(length*0.1)
     return blocks
