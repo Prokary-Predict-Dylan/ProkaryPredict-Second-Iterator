@@ -15,11 +15,11 @@ STRUCTURAL_COLORS = {
 # Functional layer
 # ---------------------------
 FUNCTION_COLORS = {
-    "enzyme": "#55a868",
-    "transporter": "#c44e52",
+    "enzyme": "#80bc8f",
+    "transporter": "#aa5064",
     "regulator": "#8172b2",
-    "structural": "#ccb974",
-    "unknown": "#cccccc"
+    "structural": "#75a2c4",
+    "unknown": "#262d48"
 }
 
 FUNCTION_KEYWORDS = {
