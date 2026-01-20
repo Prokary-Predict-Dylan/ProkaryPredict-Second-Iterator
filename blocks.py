@@ -15,9 +15,9 @@ STRUCTURAL_COLORS = {
 # Functional layer
 # ---------------------------
 FUNCTION_COLORS = {
-    "enzyme": "#80bc8f",
+    "enzyme": "#8172b2",
     "transporter": "#aa5064",
-    "regulator": "#8172b2",
+    "regulator": "#80bc8f",
     "structural": "#75a2c4",
     "unknown": "#262d48"
 }
