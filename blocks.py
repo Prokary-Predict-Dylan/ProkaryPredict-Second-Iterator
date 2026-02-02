@@ -1,7 +1,8 @@
-import re
+# blocks.py
+from typing import List, Dict
 
 # ---------------------------
-# Structural layer
+# Structural colors
 # ---------------------------
 STRUCTURAL_COLORS = {
     "protein_coding": "#4c72b0",
@@ -53,78 +54,54 @@ FUNCTION_KEYWORDS = {
     ]
 }
 
-# ---------------------------
-# Protein coding check
-# ---------------------------
 STOP_CODONS = {"TAA", "TAG", "TGA"}
 
 def is_protein_coding(seq: str) -> bool:
-    """Check if sequence is likely a protein-coding gene."""
-    if not seq or len(seq) < 90:
+    if not seq or len(seq) < 90 or len(seq) % 3 != 0:
         return False
-    if len(seq) % 3 != 0:
-        return False
-    for i in range(0, len(seq)-3, 3):
-        if seq[i:i+3].upper() in STOP_CODONS:
-            return False
-    return True
+    return not any(seq[i:i+3].upper() in STOP_CODONS for i in range(0, len(seq)-3, 3))
 
-# ---------------------------
-# Structural classification
-# ---------------------------
-def classify_structural(f: dict) -> str:
-    """Determine structural class of feature."""
+def classify_structural(f: Dict) -> str:
     if f.get("structural_override"):
         return f["structural_override"]
-    ftype = f.get("type", "").lower()
-    if ftype in ("trna", "rrna", "ncrna"):
+    if f.get("type", "").lower() in ("trna", "rrna", "ncrna"):
         return "non_coding"
     if f.get("source") == "fasta":
-        seq = f.get("sequence", "")
-        if len(seq) < 90:
-            return "fragment"
-        return "protein_coding" if is_protein_coding(seq) else "non_coding"
+        return "protein_coding" if is_protein_coding(f.get("sequence", "")) else "non_coding"
     if f.get("length", 0) < 90:
         return "fragment"
     return "protein_coding"
 
-# ---------------------------
-# Functional inference
-# ---------------------------
-def infer_function(f: dict) -> str:
-    """Infer functional class from name/product using FUNCTION_KEYWORDS."""
-    if f.get("function_override"):
-        return f["function_override"]
-    text = ((f.get("product") or "") + " " + (f.get("name") or "")).lower()
+def infer_function_keywords(f: Dict) -> str:
+    text = f"{f.get('name','')} {f.get('product','')}".lower()
     for func, keys in FUNCTION_KEYWORDS.items():
         if any(k in text for k in keys):
             return func
     return "unknown"
 
-# ---------------------------
-# Convert features to visualization blocks
-# ---------------------------
-def features_to_blocks(features: list) -> list:
-    """Convert feature list into block objects for visualization."""
+def features_to_blocks(features: List[Dict]) -> List[Dict]:
     blocks = []
-    pos = 0
+    cursor = 0
+
     for f in features:
         structural = classify_structural(f)
-        function = infer_function(f)
-        start = f.get("start", pos)
+        function = f.get("function_override") or infer_function_keywords(f)
+        start = f.get("start", cursor)
         length = f.get("length", 100)
         end = f.get("end", start + length)
+
         blocks.append({
-            "id": f.get("id"),
-            "label": f.get("name") or f.get("id"),
+            "id": f["id"],
+            "label": f.get("label") or f.get("name") or f["id"],
             "class": structural,
             "function": function,
             "start": start,
             "end": end,
             "length": length,
             "active": f.get("active", True),
-            "color": STRUCTURAL_COLORS.get(structural, "#dddddd"),
             "metadata": f
         })
-        pos = end + int(length * 0.1)
+
+        cursor = end + int(length * 0.1)
+
     return blocks
