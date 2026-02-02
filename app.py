@@ -1,11 +1,23 @@
 import streamlit as st
+import os
+import json
 from parsers import parse_fasta, parse_genbank, parse_sbml
-from blocks import features_to_blocks, STRUCTURAL_COLORS, FUNCTION_COLORS
+from blocks import features_to_blocks, STRUCTURAL_COLORS, FUNCTION_KEYWORDS
 from viz import blocks_to_figure
 from export_pdf import export_gene_reaction_pdf, export_fasta_summary_pdf
-import json
-import os
 
+# ---------------------------
+# Derived FUNCTION_COLORS
+# ---------------------------
+FUNCTION_COLORS = {
+    func: "#" + "".join([f"{hash(func+i)%256:02x}" for i in range(3)])  # simple color generator per func
+    for func in FUNCTION_KEYWORDS.keys()
+}
+FUNCTION_COLORS["unknown"] = "#262d48"  # explicit unknown
+
+# ---------------------------
+# Page config
+# ---------------------------
 st.set_page_config(page_title="ProkaryPredict — Second Iterator", layout="wide")
 st.title("ProkaryPredict — Second Iterator")
 
@@ -16,11 +28,11 @@ for k in ["confirm_export", "do_export", "input_type", "model", "feature_list"]:
     st.session_state.setdefault(k, None)
 
 # ---------------------------
-# Sidebar: Upload + Templates
+# Sidebar: Templates + Upload + Visualization + Export
 # ---------------------------
 with st.sidebar:
     st.header("Templates")
-    templates = ["None"] + os.listdir("templates")
+    templates = ["None"] + (os.listdir("templates") if os.path.exists("templates") else [])
     template_choice = st.selectbox("Load template", templates)
     
     st.header("Upload")
@@ -74,10 +86,12 @@ st.session_state["feature_list"] = feature_list
 # ---------------------------
 # Template integration
 # ---------------------------
-if template_choice != "None" and os.path.exists(f"templates/{template_choice}/metadata.json"):
-    with open(f"templates/{template_choice}/metadata.json") as f:
-        template_meta = json.load(f)
-    st.info(f"Template loaded: {template_meta.get('species', template_choice)}")
+if template_choice != "None":
+    template_path = f"templates/{template_choice}/metadata.json"
+    if os.path.exists(template_path):
+        with open(template_path) as f:
+            template_meta = json.load(f)
+        st.info(f"Template loaded: {template_meta.get('species', template_choice)}")
 
 # ---------------------------
 # Editing UI
@@ -89,7 +103,13 @@ if feature_list:
         with col1:
             f["label"] = st.text_input(f"Label {f['id']}", f.get("label", f.get("name", f['id'])), key=f"label_{i}")
         with col2:
-            f["function_override"] = st.selectbox("Function", list(FUNCTION_COLORS.keys()), index=list(FUNCTION_COLORS.keys()).index(f.get("function_override") or "unknown"), key=f"func_{i}")
+            current_func = f.get("function_override") or "unknown"
+            f["function_override"] = st.selectbox(
+                "Function",
+                list(FUNCTION_COLORS.keys()),
+                index=list(FUNCTION_COLORS.keys()).index(current_func),
+                key=f"func_{i}"
+            )
         with col3:
             f["active"] = st.checkbox("Active", f.get("active", True), key=f"active_{i}")
 
@@ -122,13 +142,13 @@ if st.session_state.get("confirm_export"):
 
 if st.session_state.get("do_export"):
     itype = st.session_state.get("input_type")
+    pdf = None
     if itype=="sbml" and st.session_state.get("model"):
         pdf = export_gene_reaction_pdf(st.session_state["model"])
     elif itype=="fasta":
         pdf = export_fasta_summary_pdf(feature_list)
     else:
         st.error("Export not available for this file type")
-        pdf = None
     if pdf:
         st.download_button("Download PDF", data=pdf, file_name=f"{export_name}.pdf", mime="application/pdf")
     st.session_state["do_export"] = False
