@@ -1,41 +1,36 @@
+# viz.py
 import plotly.graph_objects as go
 
-def blocks_to_figure(blocks):
+def barcode_view(blocks):
     fig = go.Figure()
-
     for b in blocks:
-        fig.add_trace(
-            go.Scatter(
-                x=[b["start"], b["end"]],
-                y=[0, 0],
-                mode="lines",
-                line=dict(
-                    color=b.get("active_color", "#cccccc"),
-                    width=8
-                ),
-                hoverinfo="text",
-                text=(
-                    f"<b>{b['label']}</b><br>"
-                    f"Function: {b['function']}<br>"
-                    f"Class: {b['class']}<br>"
-                    f"Length: {b['length']}"
-                ),
-                showlegend=False
-            )
-        )
-
-    fig.update_layout(
-        height=180,
-        margin=dict(l=20, r=20, t=20, b=20),
-        xaxis=dict(
-            title="Genomic position",
-            showgrid=False,
-            zeroline=False
-        ),
-        yaxis=dict(
-            visible=False
-        ),
-        plot_bgcolor="white"
-    )
-
+        fig.add_trace(go.Scatter(
+            x=[b["start"], b["end"]],
+            y=[0, 0],
+            mode="lines",
+            line=dict(color=b["active_color"], width=8),
+            hoverinfo="text",
+            text=f"{b['label']}<br>{b['class']}<br>{b['function']}",
+            showlegend=False
+        ))
+    fig.update_layout(height=180, yaxis_visible=False)
     return fig
+
+def stacked_view(blocks):
+    fig = go.Figure()
+    for b in blocks:
+        fig.add_bar(
+            x=[b["length"]],
+            y=[1],
+            base=[b["start"]],
+            orientation="h",
+            marker=dict(color=b["active_color"]),
+            hoverinfo="text",
+            text=b["label"],
+            showlegend=False
+        )
+    fig.update_layout(barmode="stack", height=350, yaxis_visible=False)
+    return fig
+
+def blocks_to_figure(blocks, mode="barcode"):
+    return barcode_view(blocks) if mode == "barcode" else stacked_view(blocks)
