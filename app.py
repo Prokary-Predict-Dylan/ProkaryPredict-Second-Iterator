@@ -10,10 +10,10 @@ from export_pdf import export_gene_reaction_pdf, export_fasta_summary_pdf
 # Derived FUNCTION_COLORS
 # ---------------------------
 FUNCTION_COLORS = {
-    func: "#" + "".join([f"{hash(func+i)%256:02x}" for i in range(3)])  # simple color generator per func
+    func: "#" + "".join([f"{hash(func + str(i)) % 256:02x}" for i in range(3)])  # fix: str(i)
     for func in FUNCTION_KEYWORDS.keys()
 }
-FUNCTION_COLORS["unknown"] = "#262d48"  # explicit unknown
+FUNCTION_COLORS["unknown"] = "#262d48"
 
 # ---------------------------
 # Page config
