@@ -119,7 +119,7 @@ feature_list = st.session_state["feature_list"]
 
 
 # =========================================================
-# VISUALIZATION (CLASSIC BARCODE)
+# VISUALIZATION — CLASSIC BARCODE
 # =========================================================
 if feature_list:
 
@@ -129,7 +129,6 @@ if feature_list:
         st.error("No blocks generated.")
     else:
 
-        # Apply coloring
         for b in blocks:
             if color_layer == "structural":
                 b["active_color"] = STRUCTURAL_COLORS.get(
