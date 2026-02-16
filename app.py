@@ -163,9 +163,9 @@ if feature_list:
             )
 
 
-# =========================================================
-# VISUALIZATION — CLASSIC BARCODE
-# =========================================================
+# ---------------------------
+# Visualization
+# ---------------------------
 if feature_list:
     blocks = features_to_blocks(feature_list)
 
@@ -175,13 +175,16 @@ if feature_list:
             if color_layer == "structural"
             else FUNCTION_COLORS[b["function"]]
         )
+
         if not b["active"]:
             b["active_color"] = "#dddddd"
 
-    st.subheader("Genome barcode")
+    st.subheader("Block visualization")
     fig = blocks_to_figure(blocks)
     st.plotly_chart(fig, use_container_width=True)
 
+    with st.expander("Block data"):
+        st.json(blocks)
 
 # =========================================================
 # EXPORT
