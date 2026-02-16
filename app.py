@@ -129,7 +129,29 @@ if template_choice != "None":
             meta = json.load(f)
         st.info(f"Template loaded: {meta.get('species', template_choice)}")
 
+# ---------------------------
+# Visualization
+# ---------------------------
+if feature_list:
+    blocks = features_to_blocks(feature_list)
 
+    for b in blocks:
+        b["active_color"] = (
+            STRUCTURAL_COLORS[b["class"]]
+            if color_layer == "structural"
+            else FUNCTION_COLORS[b["function"]]
+        )
+
+        if not b["active"]:
+            b["active_color"] = "#dddddd"
+
+    st.subheader("Block visualization")
+    fig = blocks_to_figure(blocks)
+    st.plotly_chart(fig, use_container_width=True)
+
+    with st.expander("Block data"):
+        st.json(blocks)
+        
 # =========================================================
 # FEATURE EDITOR
 # =========================================================
@@ -162,29 +184,6 @@ if feature_list:
                 key=f"active_{i}"
             )
 
-
-# ---------------------------
-# Visualization
-# ---------------------------
-if feature_list:
-    blocks = features_to_blocks(feature_list)
-
-    for b in blocks:
-        b["active_color"] = (
-            STRUCTURAL_COLORS[b["class"]]
-            if color_layer == "structural"
-            else FUNCTION_COLORS[b["function"]]
-        )
-
-        if not b["active"]:
-            b["active_color"] = "#dddddd"
-
-    st.subheader("Block visualization")
-    fig = blocks_to_figure(blocks)
-    st.plotly_chart(fig, use_container_width=True)
-
-    with st.expander("Block data"):
-        st.json(blocks)
 
 # =========================================================
 # EXPORT
