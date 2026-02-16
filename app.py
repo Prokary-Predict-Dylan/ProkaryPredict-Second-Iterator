@@ -3,19 +3,14 @@ import os
 import json
 
 from parsers import parse_fasta, parse_genbank, parse_sbml
-from blocks import features_to_blocks, STRUCTURAL_COLORS, FUNCTION_KEYWORDS
+from blocks import (
+    features_to_blocks,
+    STRUCTURAL_COLORS,
+    FUNCTION_KEYWORDS,
+    FUNCTION_COLORS
+)
 from viz import blocks_to_figure
 from export_pdf import export_gene_reaction_pdf, export_fasta_summary_pdf
-
-
-# =========================================================
-# FUNCTION COLORS (deterministic, safe)
-# =========================================================
-def _func_color(name):
-    return "#" + "".join(f"{(hash(name + str(i)) & 0xFF):02x}" for i in range(3))
-
-FUNCTION_COLORS = {k: _func_color(k) for k in FUNCTION_KEYWORDS.keys()}
-FUNCTION_COLORS["unknown"] = "#262d48"
 
 
 # =========================================================
@@ -29,7 +24,7 @@ st.title("ProkaryPredict — Second Iterator")
 
 
 # =========================================================
-# SESSION STATE
+# SESSION STATE DEFAULTS
 # =========================================================
 DEFAULTS = {
     "feature_list": [],
@@ -40,7 +35,8 @@ DEFAULTS = {
 }
 
 for k, v in DEFAULTS.items():
-    st.session_state.setdefault(k, v)
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 
 # =========================================================
@@ -48,13 +44,16 @@ for k, v in DEFAULTS.items():
 # =========================================================
 with st.sidebar:
     st.header("Templates")
+
     templates = ["None"]
     if os.path.exists("templates"):
         templates += sorted(os.listdir("templates"))
+
     template_choice = st.selectbox("Load template", templates)
 
     st.markdown("---")
     st.header("Upload")
+
     uploaded = st.file_uploader(
         "GenBank / FASTA / SBML",
         accept_multiple_files=False
@@ -62,6 +61,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.header("Visualization")
+
     color_layer = st.radio(
         "Color by",
         ["structural", "functional"],
@@ -70,28 +70,31 @@ with st.sidebar:
 
     st.markdown("---")
     st.header("Export")
+
     export_name = st.text_input(
         "PDF filename",
         "prokarypredict_report"
     )
+
     if st.button("Export PDF"):
         st.session_state["confirm_export"] = True
 
 
 # =========================================================
-# FILE PARSING
+# FILE PARSING (ONLY WHEN NEW FILE UPLOADED)
 # =========================================================
-feature_list = []
-
 if uploaded:
     name = uploaded.name.lower()
+
     try:
+        new_features = []
+
         if name.endswith((".fa", ".fasta")):
-            feature_list = parse_fasta(uploaded)
+            new_features = parse_fasta(uploaded)
             st.session_state["input_type"] = "fasta"
 
         elif name.endswith((".gb", ".gbk", ".genbank")):
-            feature_list = parse_genbank(uploaded)
+            new_features = parse_genbank(uploaded)
             st.session_state["input_type"] = "genbank"
 
         elif name.endswith((".xml", ".sbml")):
@@ -100,7 +103,7 @@ if uploaded:
             st.session_state["input_type"] = "sbml"
 
             for i, g in enumerate(sbml["genes"]):
-                feature_list.append({
+                new_features.append({
                     "id": g["id"],
                     "name": g.get("name"),
                     "product": g.get("product"),
@@ -113,10 +116,14 @@ if uploaded:
         else:
             st.error("Unsupported file type")
 
+        # Only overwrite session state once
+        st.session_state["feature_list"] = new_features
+
     except Exception as e:
         st.error(f"Parsing failed: {e}")
 
-st.session_state["feature_list"] = feature_list
+
+feature_list = st.session_state["feature_list"]
 
 
 # =========================================================
@@ -129,17 +136,19 @@ if template_choice != "None":
             meta = json.load(f)
         st.info(f"Template loaded: {meta.get('species', template_choice)}")
 
-# ---------------------------
-# Visualization
-# ---------------------------
+
+# =========================================================
+# VISUALIZATION (TOP)
+# =========================================================
 if feature_list:
+
     blocks = features_to_blocks(feature_list)
 
     for b in blocks:
         b["active_color"] = (
             STRUCTURAL_COLORS[b["class"]]
             if color_layer == "structural"
-            else FUNCTION_COLORS[b["function"]]
+            else FUNCTION_COLORS.get(b["function"], "#262d48")
         )
 
         if not b["active"]:
@@ -151,25 +160,32 @@ if feature_list:
 
     with st.expander("Block data"):
         st.json(blocks)
-        
+
+
 # =========================================================
-# FEATURE EDITOR
+# FEATURE EDITOR (BELOW GRAPH)
 # =========================================================
 if feature_list:
+
     st.subheader("Edit features")
 
     for i, f in enumerate(feature_list):
-        c1, c2, c3 = st.columns([3, 3, 2])
 
-        with c1:
+        col1, col2, col3 = st.columns([3, 3, 2])
+
+        with col1:
             f["label"] = st.text_input(
                 f"Label {f['id']}",
                 f.get("label", f.get("name", f["id"])),
                 key=f"label_{i}"
             )
 
-        with c2:
+        with col2:
             current = f.get("function_override") or "unknown"
+
+            if current not in FUNCTION_COLORS:
+                current = "unknown"
+
             f["function_override"] = st.selectbox(
                 "Function",
                 list(FUNCTION_COLORS.keys()),
@@ -177,18 +193,22 @@ if feature_list:
                 key=f"func_{i}"
             )
 
-        with c3:
+        with col3:
             f["active"] = st.checkbox(
                 "Active",
                 f.get("active", True),
                 key=f"active_{i}"
             )
 
+    # Persist edits
+    st.session_state["feature_list"] = feature_list
+
 
 # =========================================================
 # EXPORT
 # =========================================================
 if st.session_state["confirm_export"]:
+
     st.warning("Are you sure you want to export?")
     c1, c2 = st.columns(2)
 
@@ -203,6 +223,7 @@ if st.session_state["confirm_export"]:
 
 
 if st.session_state["do_export"]:
+
     pdf = None
     itype = st.session_state["input_type"]
 
