@@ -138,28 +138,37 @@ if template_choice != "None":
 
 
 # =========================================================
-# VISUALIZATION (TOP)
+# Visualization
 # =========================================================
-if feature_list:
+if st.session_state["feature_list"]:
+
+    feature_list = st.session_state["feature_list"]
+    st.write("DEBUG — rendering blocks:", len(feature_list))
 
     blocks = features_to_blocks(feature_list)
 
-    for b in blocks:
-        b["active_color"] = (
-            STRUCTURAL_COLORS[b["class"]]
-            if color_layer == "structural"
-            else FUNCTION_COLORS.get(b["function"], "#262d48")
-        )
+    if not blocks:
+        st.error("No blocks generated.")
+    else:
+        for b in blocks:
+            b["active_color"] = (
+                STRUCTURAL_COLORS.get(b["class"], "#999999")
+                if color_layer == "structural"
+                else FUNCTION_COLORS.get(b["function"], "#999999")
+            )
 
-        if not b["active"]:
-            b["active_color"] = "#dddddd"
+            if not b.get("active", True):
+                b["active_color"] = "#dddddd"
 
-    st.subheader("Block visualization")
-    fig = blocks_to_figure(blocks)
-    st.plotly_chart(fig, use_container_width=True)
+        st.subheader("Genome barcode")
 
-    with st.expander("Block data"):
-        st.json(blocks)
+        fig = blocks_to_figure(blocks)
+
+        if fig is None:
+            st.error("Figure returned None")
+        else:
+            fig.update_layout(height=300)  # FORCE visible height
+            st.plotly_chart(fig, use_container_width=True)
 
 
 # =========================================================
