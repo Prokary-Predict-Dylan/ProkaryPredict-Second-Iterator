@@ -6,7 +6,6 @@ from parsers import parse_fasta, parse_genbank, parse_sbml
 from blocks import (
     features_to_blocks,
     STRUCTURAL_COLORS,
-    FUNCTION_KEYWORDS,
     FUNCTION_COLORS
 )
 from viz import blocks_to_figure
@@ -43,15 +42,7 @@ for k, v in DEFAULTS.items():
 # SIDEBAR
 # =========================================================
 with st.sidebar:
-    st.header("Templates")
 
-    templates = ["None"]
-    if os.path.exists("templates"):
-        templates += sorted(os.listdir("templates"))
-
-    template_choice = st.selectbox("Load template", templates)
-
-    st.markdown("---")
     st.header("Upload")
 
     uploaded = st.file_uploader(
@@ -60,6 +51,7 @@ with st.sidebar:
     )
 
     st.markdown("---")
+
     st.header("Visualization")
 
     color_layer = st.radio(
@@ -69,6 +61,7 @@ with st.sidebar:
     )
 
     st.markdown("---")
+
     st.header("Export")
 
     export_name = st.text_input(
@@ -81,7 +74,7 @@ with st.sidebar:
 
 
 # =========================================================
-# FILE PARSING (ONLY WHEN NEW FILE UPLOADED)
+# FILE PARSING
 # =========================================================
 if uploaded:
     name = uploaded.name.lower()
@@ -116,7 +109,6 @@ if uploaded:
         else:
             st.error("Unsupported file type")
 
-        # Only overwrite session state once
         st.session_state["feature_list"] = new_features
 
     except Exception as e:
@@ -127,90 +119,36 @@ feature_list = st.session_state["feature_list"]
 
 
 # =========================================================
-# TEMPLATE METADATA
+# VISUALIZATION (CLASSIC BARCODE)
 # =========================================================
-if template_choice != "None":
-    meta_path = f"templates/{template_choice}/metadata.json"
-    if os.path.exists(meta_path):
-        with open(meta_path) as f:
-            meta = json.load(f)
-        st.info(f"Template loaded: {meta.get('species', template_choice)}")
-
-
-# =========================================================
-# Visualization
-# =========================================================
-if st.session_state["feature_list"]:
-
-    feature_list = st.session_state["feature_list"]
-    st.write("DEBUG — rendering blocks:", len(feature_list))
+if feature_list:
 
     blocks = features_to_blocks(feature_list)
 
     if not blocks:
         st.error("No blocks generated.")
     else:
+
+        # Apply coloring
         for b in blocks:
-            b["active_color"] = (
-                STRUCTURAL_COLORS.get(b["class"], "#999999")
-                if color_layer == "structural"
-                else FUNCTION_COLORS.get(b["function"], "#999999")
-            )
+            if color_layer == "structural":
+                b["active_color"] = STRUCTURAL_COLORS.get(
+                    b["class"], "#999999"
+                )
+            else:
+                b["active_color"] = FUNCTION_COLORS.get(
+                    b["function"], "#999999"
+                )
 
-            if not b.get("active", True):
-                b["active_color"] = "#dddddd"
-
-        st.subheader("Genome barcode")
+        st.subheader("Genome Barcode")
 
         fig = blocks_to_figure(blocks)
 
-        if fig is None:
-            st.error("Figure returned None")
-        else:
-            fig.update_layout(height=300)  # FORCE visible height
+        if fig:
+            fig.update_layout(height=250)
             st.plotly_chart(fig, use_container_width=True)
-
-
-# =========================================================
-# FEATURE EDITOR (BELOW GRAPH)
-# =========================================================
-if feature_list:
-
-    st.subheader("Edit features")
-
-    for i, f in enumerate(feature_list):
-
-        col1, col2, col3 = st.columns([3, 3, 2])
-
-        with col1:
-            f["label"] = st.text_input(
-                f"Label {f['id']}",
-                f.get("label", f.get("name", f["id"])),
-                key=f"label_{i}"
-            )
-
-        with col2:
-            current = f.get("function_override") or "unknown"
-
-            if current not in FUNCTION_COLORS:
-                current = "unknown"
-
-            f["function_override"] = st.selectbox(
-                "Function",
-                list(FUNCTION_COLORS.keys()),
-                index=list(FUNCTION_COLORS.keys()).index(current),
-                key=f"func_{i}"
-            )
-
-        with col3:
-            f["active"] = st.checkbox(
-                "Active",
-                f.get("active", True),
-                key=f"active_{i}"
-            )
-
-    # Persist edits
-    st.session_state["feature_list"] = feature_list
+        else:
+            st.error("Figure failed to render.")
 
 
 # =========================================================
