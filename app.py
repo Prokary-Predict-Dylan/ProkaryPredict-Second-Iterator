@@ -16,10 +16,10 @@ from export_pdf import export_gene_reaction_pdf, export_fasta_summary_pdf
 # PAGE CONFIG
 # =========================================================
 st.set_page_config(
-    page_title="ProkaryPredict — Second Iterator",
+    page_title="ProkaryPredict — (0.2)",
     layout="wide"
 )
-st.title("ProkaryPredict — Second Iterator")
+st.title("ProkaryPredict — (0.2)")
 
 
 # =========================================================
@@ -139,7 +139,7 @@ if feature_list:
                     b["function"], "#999999"
                 )
 
-        st.subheader("Genome Barcode")
+        st.subheader("Visualization")
 
         fig = blocks_to_figure(blocks)
 
