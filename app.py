@@ -169,8 +169,13 @@ if feature_list:
 st.markdown("### Edit Selected Feature")
 
 selected_feature = next(
-    f for f in feature_list if f["id"] == selected_id
+    (f for f in feature_list if f["id"] == selected_id),
+    None
 )
+
+if selected_feature is None:
+    st.warning("Selected feature not found.")
+    st.stop()
 
 col1, col2, col3 = st.columns([3, 3, 1])
 
