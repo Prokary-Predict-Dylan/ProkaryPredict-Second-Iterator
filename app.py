@@ -148,7 +148,7 @@ if feature_list:
 
     selected_id = feature_options[selected_label]
 
-    st.subheader("Genome Barcode")
+    st.subheader("Visualization")
 
     fig = blocks_to_figure(blocks, selected_id=selected_id)
 
@@ -166,7 +166,7 @@ if feature_list:
 # =========================================================
 # DROPDOWN EDITOR
 # =========================================================
-st.markdown("### Edit Selected Feature")
+st.markdown("### Welcome")
 
 selected_feature = next(
     (f for f in feature_list if f["id"] == selected_id),
