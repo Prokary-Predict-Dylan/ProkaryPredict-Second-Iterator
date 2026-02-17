@@ -119,36 +119,89 @@ feature_list = st.session_state["feature_list"]
 
 
 # =========================================================
-# VISUALIZATION — CLASSIC BARCODE
+# VISUALIZATION — ENHANCED BARCODE
 # =========================================================
 if feature_list:
 
     blocks = features_to_blocks(feature_list)
 
-    if not blocks:
-        st.error("No blocks generated.")
-    else:
-
-        for b in blocks:
-            if color_layer == "structural":
-                b["active_color"] = STRUCTURAL_COLORS.get(
-                    b["class"], "#999999"
-                )
-            else:
-                b["active_color"] = FUNCTION_COLORS.get(
-                    b["function"], "#999999"
-                )
-
-        st.subheader("Visualization")
-
-        fig = blocks_to_figure(blocks)
-
-        if fig:
-            fig.update_layout(height=250)
-            st.plotly_chart(fig, use_container_width=True)
+    # Apply colors
+    for b in blocks:
+        if color_layer == "structural":
+            b["active_color"] = STRUCTURAL_COLORS.get(b["class"], "#999999")
         else:
-            st.error("Figure failed to render.")
+            b["active_color"] = FUNCTION_COLORS.get(b["function"], "#999999")
 
+        if not b.get("active", True):
+            b["active_color"] = "#dddddd"
+
+    # Dropdown selector
+    feature_options = {
+        f"{f['id']} — {f.get('name','')}": f["id"]
+        for f in feature_list
+    }
+
+    selected_label = st.selectbox(
+        "Select feature to edit",
+        list(feature_options.keys())
+    )
+
+    selected_id = feature_options[selected_label]
+
+    st.subheader("Genome Barcode")
+
+    fig = blocks_to_figure(blocks, selected_id=selected_id)
+
+    # Auto-zoom to selected gene
+    selected_block = next(b for b in blocks if b["id"] == selected_id)
+    fig.update_xaxes(
+        range=[
+            selected_block["start"] - 500,
+            selected_block["end"] + 500
+        ]
+    )
+
+    st.plotly_chart(fig, width="stretch")
+
+# =========================================================
+# DROPDOWN EDITOR
+# =========================================================
+st.markdown("### Edit Selected Feature")
+
+selected_feature = next(
+    f for f in feature_list if f["id"] == selected_id
+)
+
+col1, col2, col3 = st.columns([3, 3, 1])
+
+with col1:
+    selected_feature["label"] = st.text_input(
+        "Label",
+        selected_feature.get(
+            "label",
+            selected_feature.get("name", selected_feature["id"])
+        )
+    )
+
+with col2:
+    current = selected_feature.get("function_override", "unknown")
+
+    if current not in FUNCTION_COLORS:
+        current = "unknown"
+
+    selected_feature["function_override"] = st.selectbox(
+        "Function",
+        list(FUNCTION_COLORS.keys()),
+        index=list(FUNCTION_COLORS.keys()).index(current)
+    )
+
+with col3:
+    selected_feature["active"] = st.checkbox(
+        "Active",
+        selected_feature.get("active", True)
+    )
+
+st.session_state["feature_list"] = feature_list
 
 # =========================================================
 # EXPORT
