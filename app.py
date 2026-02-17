@@ -119,9 +119,14 @@ feature_list = st.session_state["feature_list"]
 
 
 # =========================================================
-# VISUALIZATION — ENHANCED BARCODE
+# VISUALIZATION — PRIORITY BLOCK
 # =========================================================
+selected_index = None
+selected_id = None
+
 if feature_list:
+
+    st.subheader("Visualization")
 
     blocks = features_to_blocks(feature_list)
 
@@ -130,15 +135,18 @@ if feature_list:
         if color_layer == "structural":
             b["active_color"] = STRUCTURAL_COLORS.get(b["class"], "#999999")
         else:
-            b["active_color"] = FUNCTION_COLORS.get(b["function"], "#999999")
+            b["active_color"] = FUNCTION_COLORS.get(
+                b.get("function_override", b["function"]),
+                "#999999"
+            )
 
         if not b.get("active", True):
             b["active_color"] = "#dddddd"
 
-    # Dropdown selector
+    # --- SAFE INDEX-BASED DROPDOWN ---
     feature_options = {
-        f"{f['id']} — {f.get('name','')}": f["id"]
-        for f in feature_list
+        f"{f['id']} — {f.get('name','')}": i
+        for i, f in enumerate(feature_list)
     }
 
     selected_label = st.selectbox(
@@ -146,68 +154,67 @@ if feature_list:
         list(feature_options.keys())
     )
 
-    selected_id = feature_options[selected_label]
-
-    st.subheader("Visualization")
+    selected_index = feature_options[selected_label]
+    selected_feature = feature_list[selected_index]
+    selected_id = selected_feature["id"]
 
     fig = blocks_to_figure(blocks, selected_id=selected_id)
 
-    # Auto-zoom to selected gene
-    selected_block = next(b for b in blocks if b["id"] == selected_id)
-    fig.update_xaxes(
-        range=[
-            selected_block["start"] - 500,
-            selected_block["end"] + 500
-        ]
+    # --- Auto Zoom ---
+    selected_block = next(
+        (b for b in blocks if b["id"] == selected_id),
+        None
     )
+
+    if selected_block:
+        fig.update_xaxes(
+            range=[
+                selected_block["start"] - 500,
+                selected_block["end"] + 500
+            ]
+        )
 
     st.plotly_chart(fig, width="stretch")
 
 # =========================================================
-# DROPDOWN EDITOR
+# DROPDOWN EDITOR (Below Visualization)
 # =========================================================
-st.markdown("### Welcome")
+if feature_list and selected_index is not None:
 
-selected_feature = next(
-    (f for f in feature_list if f["id"] == selected_id),
-    None
-)
+    st.markdown("### Edit Selected Feature")
 
-if selected_feature is None:
-    st.warning("Selected feature not found.")
-    st.stop()
+    selected_feature = feature_list[selected_index]
 
-col1, col2, col3 = st.columns([3, 3, 1])
+    col1, col2, col3 = st.columns([3, 3, 1])
 
-with col1:
-    selected_feature["label"] = st.text_input(
-        "Label",
-        selected_feature.get(
-            "label",
-            selected_feature.get("name", selected_feature["id"])
+    with col1:
+        selected_feature["label"] = st.text_input(
+            "Label",
+            selected_feature.get(
+                "label",
+                selected_feature.get("name", selected_feature["id"])
+            )
         )
-    )
 
-with col2:
-    current = selected_feature.get("function_override", "unknown")
+    with col2:
+        current = selected_feature.get("function_override", "unknown")
 
-    if current not in FUNCTION_COLORS:
-        current = "unknown"
+        if current not in FUNCTION_COLORS:
+            current = "unknown"
 
-    selected_feature["function_override"] = st.selectbox(
-        "Function",
-        list(FUNCTION_COLORS.keys()),
-        index=list(FUNCTION_COLORS.keys()).index(current)
-    )
+        selected_feature["function_override"] = st.selectbox(
+            "Function",
+            list(FUNCTION_COLORS.keys()),
+            index=list(FUNCTION_COLORS.keys()).index(current)
+        )
 
-with col3:
-    selected_feature["active"] = st.checkbox(
-        "Active",
-        selected_feature.get("active", True)
-    )
+    with col3:
+        selected_feature["active"] = st.checkbox(
+            "Active",
+            selected_feature.get("active", True)
+        )
 
-st.session_state["feature_list"] = feature_list
-
+    st.session_state["feature_list"] = feature_list
 # =========================================================
 # EXPORT
 # =========================================================
