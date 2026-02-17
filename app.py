@@ -1,6 +1,4 @@
 import streamlit as st
-import os
-import json
 
 from parsers import parse_fasta, parse_genbank, parse_sbml
 from blocks import (
@@ -117,13 +115,13 @@ if uploaded:
 
 feature_list = st.session_state["feature_list"]
 
-
-# =========================================================
-# VISUALIZATION — PRIORITY BLOCK
-# =========================================================
 selected_index = None
 selected_id = None
 
+
+# =========================================================
+# VISUALIZATION (PRIMARY BLOCK)
+# =========================================================
 if feature_list:
 
     st.subheader("Visualization")
@@ -136,14 +134,14 @@ if feature_list:
             b["active_color"] = STRUCTURAL_COLORS.get(b["class"], "#999999")
         else:
             b["active_color"] = FUNCTION_COLORS.get(
-                b.get("function_override", b["function"]),
+                b.get("function", "unknown"),
                 "#999999"
             )
 
         if not b.get("active", True):
             b["active_color"] = "#dddddd"
 
-    # --- SAFE INDEX-BASED DROPDOWN ---
+    # SAFE INDEX-BASED DROPDOWN
     feature_options = {
         f"{f['id']} — {f.get('name','')}": i
         for i, f in enumerate(feature_list)
@@ -160,7 +158,7 @@ if feature_list:
 
     fig = blocks_to_figure(blocks, selected_id=selected_id)
 
-    # --- Auto Zoom ---
+    # Auto-zoom safely
     selected_block = next(
         (b for b in blocks if b["id"] == selected_id),
         None
@@ -176,8 +174,9 @@ if feature_list:
 
     st.plotly_chart(fig, width="stretch")
 
+
 # =========================================================
-# DROPDOWN EDITOR (Below Visualization)
+# EDITOR (ONLY IF VALID SELECTION)
 # =========================================================
 if feature_list and selected_index is not None:
 
@@ -215,6 +214,8 @@ if feature_list and selected_index is not None:
         )
 
     st.session_state["feature_list"] = feature_list
+
+
 # =========================================================
 # EXPORT
 # =========================================================
