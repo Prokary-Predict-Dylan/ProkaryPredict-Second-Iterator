@@ -101,29 +101,22 @@ def infer_function(f):
 
 def features_to_blocks(features):
     blocks = []
-    pos = 0
 
     for f in features:
-        length = f.get("length", 100)
         structural = classify_structural(f)
-        function = infer_function(f)
-
-        start = f.get("start", pos)
-        end = f.get("end", start + length)
+        function = f.get("function_override") or infer_function(f)
 
         blocks.append({
-            "id": f.get("id"),
-            "label": f.get("name") or f.get("id"),
+            "id": f["id"],
+            "label": f.get("label", f.get("name", f["id"])),
             "class": structural,
             "function": function,
-            "start": start,
-            "end": end,
-            "length": length,
-            "color": STRUCTURAL_COLORS.get(structural),
-            "metadata": f
+            "start": f.get("start", 0),
+            "end": f.get("end", f.get("start", 0) + f.get("length", 100)),
+            "length": f.get("length", 100),
+            "strand": f.get("strand", "+"),
+            "active": f.get("active", True)
         })
-
-        pos = end + int(length * 0.1)
 
     return blocks
 
